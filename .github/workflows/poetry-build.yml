@@ -26,5 +26,5 @@ jobs:
       - name: Build module
         run: poetry build
       - name: Run tests
-        run: poetry run pytest tests/
+        run: poetry run pytest tests/ -v --color=yes
 

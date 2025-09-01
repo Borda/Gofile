@@ -2,6 +2,7 @@
 # coding: utf-8
 
 import argparse
+import importlib
 import json
 import mimetypes
 import os
@@ -12,16 +13,22 @@ from datetime import datetime
 from glob import glob
 from pathlib import Path
 from platform import platform
-from typing import Optional
+from typing import Optional, Tuple
 
 import requests
-from rich import print as rprint
-from rich.highlighter import JSONHighlighter
-from rich.panel import Panel
-from rich.progress import track
+
+if importlib.util.find_spec('rich') is not None:
+    from rich import print as rprint
+    from rich.panel import Panel
+    from rich.progress import track
+    from rich.highlighter import JSONHighlighter
 
 
-def upload(file: str, best_server: str, folder_id: Optional[str] = None, nb_retries: int = 10):
+def upload(file: str,
+           best_server: str,
+           folder_id: Optional[str] = None,
+           nb_retries: int = 10,
+           verbose: int = 1) -> dict:
     f_obj = Path(file)
     content_type = mimetypes.guess_type(f_obj)[0]
     upload_url = f'https://{best_server}.gofile.io/uploadFile'
@@ -40,9 +47,10 @@ def upload(file: str, best_server: str, folder_id: Optional[str] = None, nb_retr
                 files={'file': (f_obj.name, f_data, content_type)})
             break
         except requests.exceptions.ConnectionError:
-            rprint(
-                'The connection was refused from the API side! '
-                f'Trying again... ([cyan]{attempt}[/cyan]/10)')
+            if verbose:
+                rprint(
+                    'The connection was refused from the API side! '
+                    f'Trying again... ([cyan]{attempt}[/cyan]/10)')
             if attempt < nb_retries:  # no need for sleep if it is the last iteration
                 time.sleep(2)
     return resp
@@ -50,10 +58,12 @@ def upload(file: str, best_server: str, folder_id: Optional[str] = None, nb_retr
 
 def gofile_upload(path: list,
                   to_single_folder: bool = False,
-                  verbose: bool = False,
+                  verbose: int = 1,
                   export: bool = False,
-                  open_urls: bool = False):
-    highlighter = JSONHighlighter()
+                  open_urls: bool = False
+                  ) -> Tuple[list, list]:
+    if isinstance(verbose, bool):
+        verbose = int(verbose)
 
     get_server = requests.get('https://api.gofile.io/servers')
     servers = get_server.json()
@@ -80,18 +90,20 @@ def gofile_upload(path: list,
     export_data = []
     urls = []
     folder_id = None
-    n = 0
 
-    for file in track(files, description='[magenta]Uploading progress:'):
+    if verbose:
+        files = track(files, description='[magenta]Uploading progress:')
+    for file in files:
         upload_resp = upload(file, best_server, folder_id).json()
 
         if to_single_folder and not os.getenv('GOFILE_TOKEN'):
-            rprint('[red]ERROR: Gofile token is required when passing '
-                   '`--to-single-folder`![/red]\n[dim red]You can find your '
-                   'account token on this page: '
-                   '[u][blue]https://gofile.io/myProfile[/blue][/u]\nCopy it '
-                   'then export it as `GOFILE_TOKEN`. For example:\n'
-                   'export GOFILE_TOKEN=\'xxxxxxxxxxxxxxxxx\'[/dim red]')
+            if verbose:
+                rprint('[red]ERROR: Gofile token is required when passing '
+                       '`--to-single-folder`![/red]\n[dim red]You can find your '
+                       'account token on this page: '
+                       '[u][blue]https://gofile.io/myProfile[/blue][/u]\nCopy it '
+                       'then export it as `GOFILE_TOKEN`. For example:\n'
+                       'export GOFILE_TOKEN=\'xxxxxxxxxxxxxxxxx\'[/dim red]')
             sys.exit(1)
         elif to_single_folder and os.getenv('GOFILE_TOKEN'):
             folder_id = upload_resp['data']['parentFolder']
@@ -103,11 +115,12 @@ def gofile_upload(path: list,
         url = upload_resp['data']['downloadPage']
         urls.append(url)
 
-        if verbose:
+        if verbose >= 1:
+            highlighter = JSONHighlighter()
             highlighted_resp = highlighter(json.dumps(record, indent=2))
             rprint(Panel(highlighted_resp))
 
-        elif not to_single_folder:
+        elif not to_single_folder and verbose:
             rprint(
                 Panel.fit(
                     f'[yellow]File:[/yellow] [blue]{file}[/blue]\n'
@@ -121,23 +134,26 @@ def gofile_upload(path: list,
 
     if to_single_folder:
         files = '\n'.join([str(Path(x).absolute()) for x in files])
-        rprint(
-            Panel.fit(f'[yellow]Files:[/yellow]\n[blue]{files}[/blue]\n'
-                      '[yellow]Download page:[/yellow] '
-                      f'[u][blue]{urls[0]}[/blue][/u]'))
+        if verbose:
+            rprint(
+                Panel.fit(f'[yellow]Files:[/yellow]\n[blue]{files}[/blue]\n'
+                          '[yellow]Download page:[/yellow] '
+                          f'[u][blue]{urls[0]}[/blue][/u]'))
 
     if export:
         export_fname = f'gofile_export_{int(time.time())}.json'
         with open(export_fname, 'w') as j:
             json.dump(export_data, j, indent=4)
-        rprint('[green]Exported data to:[/green] '
-               f'[magenta]{export_fname}[/magenta]')
+        if verbose:
+            rprint('[green]Exported data to:[/green] '
+                   f'[magenta]{export_fname}[/magenta]')
 
     if 'macOS' in platform() and open_urls:
         for url in urls:
             subprocess.call(['open', f'{url}'])
             if to_single_folder:
                 break
+    return urls, export_data
 
 
 def opts():
@@ -167,7 +183,7 @@ def main():
     gofile_upload(
         path=args.path,
         to_single_folder=args.to_single_folder,
-        verbose=args.verbose,
+        verbose=2 if args.verbose else 1,
         export=args.export,
         open_urls=args.open_urls,
     )
