@@ -2,22 +2,17 @@
 
 🚀 Python wrapper for gofile.io Upload API[^1].
 
-[![Build](https://github.com/Alyetama/gofile/actions/workflows/poetry-build.yml/badge.svg)](https://github.com/Alyetama/gofile/actions/workflows/poetry-build.yml) [![PyPI version](https://badge.fury.io/py/gofilepy.svg)](https://pypi.org/project/gofilepy) [![Supported Python versions](https://img.shields.io/badge/Python-%3E=3.7-blue.svg)](https://www.python.org/downloads/) [![PEP8](https://img.shields.io/badge/Code%20style-PEP%208-orange.svg)](https://www.python.org/dev/peps/pep-0008/) 
-
-
-## Requirements
-- 🐍 [python>=3.7](https://www.python.org/downloads/)
-
+[![Build](https://github.com/Alyetama/gofile/actions/workflows/poetry-build.yml/badge.svg)](https://github.com/Alyetama/gofile/actions/workflows/poetry-build.yml) [![PyPI version](https://badge.fury.io/py/gofilepy.svg)](https://pypi.org/project/gofilepy) [![Supported Python versions](https://img.shields.io/badge/Python-%3E=3.7-blue.svg)](https://www.python.org/downloads/) [![PEP8](https://img.shields.io/badge/Code%20style-PEP%208-orange.svg)](https://www.python.org/dev/peps/pep-0008/)
 
 ## ⬇️ Installation
 
-```sh
+```bash
 pip install gofilepy
 ```
 
 ## ⬆️  Upgrade Existing Installation
 
-```sh
+```bash
 pip install -U gofilepy
 ```
 
@@ -48,7 +43,7 @@ options:
 
 ### Example 1: Uploading one file
 
-```sh
+```bash
 ➜ gofile foo.txt
 ╭───────────────────────────────────────────╮
 │ File: foo.txt                             │
@@ -97,7 +92,7 @@ Uploading progress: ━━━━━━━━━━━━━━━━━━━━
 
 ### Example 4: Verbose output
 
-```sh
+```bash
 ➜ gofile -vv foo.txt
 ╭──────────────────────────────────────────────────────────────────────────────╮
 │ {                                                                            │
@@ -123,7 +118,7 @@ Uploading progress: ━━━━━━━━━━━━━━━━━━━━
 
 ### Example 5: Exporting the API response to a JSON file
 
-```sh
+```bash
 ➜ gofile -e foo.txt
 ╭───────────────────────────────────────────╮
 │ File: foo.txt                             │
@@ -165,7 +160,7 @@ Exported data to: gofile_export_1653950555.json
 
 If you want the files to be uploaded to a specific account, you can export your gofile token, which can be retrieved from the [profile page](https://gofile.io/myProfile), as an environment variable `GOFILE_TOKEN`.
 
-```sh
+```bash
 export GOFILE_TOKEN='xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'
 ```
 
