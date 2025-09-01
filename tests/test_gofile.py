@@ -3,19 +3,18 @@
 
 import os
 import tempfile
-import unittest
 from pathlib import Path
 from typing import Union
 from unittest.mock import Mock, patch, mock_open
+from unittest_parametrize import ParametrizedTestCase, parametrize
 
-import pytest
 import requests
 
 # Import the functions we want to test
 from gofilepy.gofile import upload, gofile_upload
 
 
-class TestGofileUpload(unittest.TestCase):
+class TestGofileUpload(ParametrizedTestCase):
 
     def setUp(self):
         """Set up test fixtures before each test method."""
@@ -35,7 +34,7 @@ class TestGofileUpload(unittest.TestCase):
         if os.path.exists(self.test_file_path):
             os.unlink(self.test_file_path)
 
-    @pytest.mark.parametrize("verbose", [0, 1, 2, True, False])
+    @parametrize("verbose", [(0,), (1,), (2,), (True,), (False,)])
     @patch('gofilepy.gofile.requests.post')
     @patch.dict(os.environ, {'GOFILE_TOKEN': 'test_token_123'})
     def test_upload_successful(self, mock_post: Mock, verbose: Union[int, bool]):
@@ -81,7 +80,7 @@ class TestGofileUpload(unittest.TestCase):
         self.assertIn('code', response_data['data'])
         self.assertIn('parentFolder', response_data['data'])
 
-    @pytest.mark.parametrize("verbose", [0, 1, 2, True, False])
+    @parametrize("verbose", [(0,), (1,), (2,), (True,), (False,)])
     @patch('gofilepy.gofile.requests.post')
     @patch('gofilepy.gofile.time.sleep')
     @patch('gofilepy.gofile.rprint')
@@ -136,7 +135,7 @@ class TestGofileUpload(unittest.TestCase):
         # Result should be None (function returns after break)
         self.assertIsNone(result)
 
-    @pytest.mark.parametrize("verbose", [0, 1, 2])
+    @parametrize("verbose", [(0,), (1,), (2,)])
     @patch('gofilepy.gofile.requests.get')
     @patch('gofilepy.gofile.upload')
     def test_gofile_upload_single_file(self, mock_upload: Mock, mock_get: Mock, verbose: int):
@@ -324,8 +323,3 @@ class TestGofileUpload(unittest.TestCase):
 
         with self.assertRaises(FileNotFoundError):
             upload(non_existent_file, self.test_server)
-
-
-if __name__ == '__main__':
-    # Run the tests
-    unittest.main(verbosity=2)
