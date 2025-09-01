@@ -5,8 +5,10 @@ import os
 import tempfile
 import unittest
 from pathlib import Path
+from typing import Union
 from unittest.mock import Mock, patch, mock_open
 
+import pytest
 import requests
 
 # Import the functions we want to test
@@ -33,10 +35,11 @@ class TestGofileUpload(unittest.TestCase):
         if os.path.exists(self.test_file_path):
             os.unlink(self.test_file_path)
 
+    @pytest.mark.parametrize("verbose", [0, 1, 2, True, False])
     @patch('gofilepy.gofile.requests.post')
     @patch.dict(os.environ, {'GOFILE_TOKEN': 'test_token_123'})
-    def test_upload_successful(self, mock_post):
-        """Test successful file upload."""
+    def test_upload_successful(self, mock_post: Mock, verbose: Union[int, bool]):
+        """Test successful file upload with different verbose levels."""
         # Mock successful response
         mock_response = Mock()
         mock_response.json.return_value = {
@@ -50,7 +53,7 @@ class TestGofileUpload(unittest.TestCase):
         mock_post.return_value = mock_response
 
         # Call the upload function
-        result = upload(self.test_file_path, self.test_server, self.test_folder_id)
+        result = upload(self.test_file_path, self.test_server, self.test_folder_id, verbose=verbose)
 
         # Verify the request was made correctly
         mock_post.assert_called_once()
@@ -70,14 +73,20 @@ class TestGofileUpload(unittest.TestCase):
         self.assertEqual(file_tuple[0], Path(self.test_file_path).name)
         self.assertEqual(file_tuple[2], 'text/plain')  # MIME type for .txt file
 
-        # Verify response
+        # Verify response and return value structure
         self.assertEqual(result, mock_response)
+        response_data = result.json()
+        self.assertEqual(response_data['status'], 'ok')
+        self.assertIn('downloadPage', response_data['data'])
+        self.assertIn('code', response_data['data'])
+        self.assertIn('parentFolder', response_data['data'])
 
+    @pytest.mark.parametrize("verbose", [0, 1, 2, True, False])
     @patch('gofilepy.gofile.requests.post')
     @patch('gofilepy.gofile.time.sleep')
     @patch('gofilepy.gofile.rprint')
-    def test_upload_with_connection_retry(self, mock_rprint, mock_sleep, mock_post):
-        """Test upload with connection error retry logic."""
+    def test_upload_with_connection_retry(self, mock_rprint: Mock, mock_sleep: Mock, mock_post: Mock, verbose: Union[int, bool]):
+        """Test upload with connection error retry logic and different verbose levels."""
         # First two calls raise ConnectionError, third succeeds
         mock_response = Mock()
         mock_response.json.return_value = {'status': 'ok', 'data': {'downloadPage': 'test'}}
@@ -88,21 +97,32 @@ class TestGofileUpload(unittest.TestCase):
             mock_response
         ]
 
-        result = upload(self.test_file_path, self.test_server)
+        result = upload(self.test_file_path, self.test_server, verbose=verbose)
 
         # Should have made 3 attempts
         self.assertEqual(mock_post.call_count, 3)
         # Should have slept twice (after first two failures)
         self.assertEqual(mock_sleep.call_count, 2)
         mock_sleep.assert_called_with(2)
-        # Should have printed retry messages
-        self.assertEqual(mock_rprint.call_count, 2)
+
+        # Check verbose behavior
+        if verbose:
+            # Should have printed retry messages
+            self.assertEqual(mock_rprint.call_count, 2)
+        else:
+            # Should not print when verbose is 0 or False
+            mock_rprint.assert_not_called()
+
         # Should return successful response
         self.assertEqual(result, mock_response)
+        # Check return value structure
+        response_data = result.json()
+        self.assertEqual(response_data['status'], 'ok')
+        self.assertIn('downloadPage', response_data['data'])
 
     @patch('gofilepy.gofile.requests.post')
     @patch('gofilepy.gofile.time.sleep')
-    def test_upload_max_retries_exceeded(self, mock_sleep, mock_post):
+    def test_upload_max_retries_exceeded(self, mock_sleep: Mock, mock_post: Mock):
         """Test upload when max retries are exceeded."""
         # Always raise ConnectionError
         mock_post.side_effect = requests.exceptions.ConnectionError("Connection failed")
@@ -116,10 +136,11 @@ class TestGofileUpload(unittest.TestCase):
         # Result should be None (function returns after break)
         self.assertIsNone(result)
 
+    @pytest.mark.parametrize("verbose", [0, 1, 2])
     @patch('gofilepy.gofile.requests.get')
     @patch('gofilepy.gofile.upload')
-    def test_gofile_upload_single_file(self, mock_upload, mock_get):
-        """Test gofile_upload function with a single file."""
+    def test_gofile_upload_single_file(self, mock_upload: Mock, mock_get: Mock, verbose: int):
+        """Test gofile_upload function with a single file and different verbose levels."""
         # Mock server selection
         mock_get.return_value.json.return_value = {
             'data': {
@@ -138,10 +159,10 @@ class TestGofileUpload(unittest.TestCase):
         }
         mock_upload.return_value = mock_upload_response
 
-        # Call gofile_upload
+        # Call gofile_upload and check return values
         with patch('gofilepy.gofile.track') as mock_track:
             mock_track.return_value = [self.test_file_path]  # Mock the progress tracker
-            gofile_upload([self.test_file_path])
+            urls, export_data = gofile_upload([self.test_file_path], verbose=verbose)
 
         # Verify server selection API call
         mock_get.assert_called_once_with('https://api.gofile.io/servers')
@@ -149,10 +170,17 @@ class TestGofileUpload(unittest.TestCase):
         # Verify upload was called with correct parameters
         mock_upload.assert_called_once_with(self.test_file_path, 'store1', None)
 
+        # Check return values
+        self.assertIsInstance(urls, list)
+        self.assertIsInstance(export_data, list)
+        self.assertEqual(len(urls), 1)
+        self.assertEqual(urls[0], 'https://gofile.io/d/test123')
+        self.assertEqual(len(export_data), 0)  # Empty when export=False
+
     @patch('gofilepy.gofile.requests.get')
     @patch('gofilepy.gofile.upload')
     @patch.dict(os.environ, {'GOFILE_TOKEN': 'test_token_123'})
-    def test_gofile_upload_to_single_folder(self, mock_upload, mock_get):
+    def test_gofile_upload_to_single_folder(self, mock_upload: Mock, mock_get: Mock):
         """Test gofile_upload with to_single_folder option."""
         # Mock server selection
         mock_get.return_value.json.return_value = {
@@ -184,7 +212,7 @@ class TestGofileUpload(unittest.TestCase):
         try:
             with patch('gofilepy.gofile.track') as mock_track:
                 mock_track.return_value = [self.test_file_path, temp_file2.name]
-                gofile_upload([self.test_file_path, temp_file2.name], to_single_folder=True)
+                urls, export_data = gofile_upload([self.test_file_path, temp_file2.name], to_single_folder=True)
 
             # Verify first upload called with None folder_id
             first_call = mock_upload.call_args_list[0]
@@ -194,6 +222,14 @@ class TestGofileUpload(unittest.TestCase):
             second_call = mock_upload.call_args_list[1]
             self.assertEqual(second_call[0], (temp_file2.name, 'store1', 'shared_folder_123'))
 
+            # Check return values
+            self.assertIsInstance(urls, list)
+            self.assertIsInstance(export_data, list)
+            self.assertEqual(len(urls), 2)
+            self.assertEqual(urls[0], 'https://gofile.io/d/test0')
+            self.assertEqual(urls[1], 'https://gofile.io/d/test1')
+            self.assertEqual(len(export_data), 0)  # Empty when export=False
+
         finally:
             os.unlink(temp_file2.name)
 
@@ -201,7 +237,7 @@ class TestGofileUpload(unittest.TestCase):
     @patch('gofilepy.gofile.upload')
     @patch('gofilepy.gofile.sys.exit')
     @patch('gofilepy.gofile.rprint')
-    def test_gofile_upload_single_folder_without_token(self, mock_rprint, mock_exit, mock_upload, mock_get):
+    def test_gofile_upload_single_folder_without_token(self, mock_rprint: Mock, mock_exit: Mock, mock_upload: Mock, mock_get: Mock):
         """Test gofile_upload with to_single_folder but without token."""
         # Mock server selection
         mock_get.return_value.json.return_value = {
@@ -234,7 +270,7 @@ class TestGofileUpload(unittest.TestCase):
     @patch('gofilepy.gofile.requests.get')
     @patch('gofilepy.gofile.upload')
     @patch('gofilepy.gofile.json.dump')
-    def test_gofile_upload_with_export(self, mock_json_dump, mock_upload, mock_get):
+    def test_gofile_upload_with_export(self, mock_json_dump: Mock, mock_upload: Mock, mock_get: Mock):
         """Test gofile_upload with export option."""
         # Mock server selection
         mock_get.return_value.json.return_value = {
@@ -258,7 +294,7 @@ class TestGofileUpload(unittest.TestCase):
         with patch('gofilepy.gofile.track') as mock_track, \
                 patch('builtins.open', mock_open()) as mock_file:
             mock_track.return_value = [self.test_file_path]
-            gofile_upload([self.test_file_path], export=True)
+            urls, export_data = gofile_upload([self.test_file_path], export=True)
 
         # Verify JSON export was called
         mock_json_dump.assert_called_once()
@@ -272,6 +308,15 @@ class TestGofileUpload(unittest.TestCase):
         self.assertIn('timestamp', record)
         self.assertIn('response', record)
         self.assertEqual(record['response'], upload_data)
+
+        # Check return values
+        self.assertIsInstance(urls, list)
+        self.assertIsInstance(export_data, list)
+        self.assertEqual(len(urls), 1)
+        self.assertEqual(urls[0], 'https://gofile.io/d/test123')
+        # Check that export_data from return value matches what was exported
+        self.assertEqual(len(export_data), 1)
+        self.assertEqual(export_data[0]['response'], upload_data)
 
     def test_upload_file_not_exists(self):
         """Test upload with non-existent file."""

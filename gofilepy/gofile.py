@@ -2,6 +2,7 @@
 # coding: utf-8
 
 import argparse
+import importlib
 import json
 import mimetypes
 import os
@@ -15,6 +16,12 @@ from platform import platform
 from typing import Optional, Tuple
 
 import requests
+
+if importlib.util.find_spec('rich') is not None:
+    from rich import print as rprint
+    from rich.panel import Panel
+    from rich.progress import track
+    from rich.highlighter import JSONHighlighter
 
 
 def upload(file: str,
@@ -41,12 +48,9 @@ def upload(file: str,
             break
         except requests.exceptions.ConnectionError:
             if verbose:
-                from rich import print as rprint
-
                 rprint(
                     'The connection was refused from the API side! '
-                    f'Trying again... ([cyan]{attempt}[/cyan]/10)',
-                    style='red')
+                    f'Trying again... ([cyan]{attempt}[/cyan]/10)')
             if attempt < nb_retries:  # no need for sleep if it is the last iteration
                 time.sleep(2)
     return resp
@@ -60,10 +64,6 @@ def gofile_upload(path: list,
                   ) -> Tuple[list, list]:
     if isinstance(verbose, bool):
         verbose = int(verbose)
-    if verbose:
-        from rich import print as rprint
-        from rich.panel import Panel
-        from rich.progress import track
 
     get_server = requests.get('https://api.gofile.io/servers')
     servers = get_server.json()
@@ -116,8 +116,6 @@ def gofile_upload(path: list,
         urls.append(url)
 
         if verbose >= 1:
-            from rich.highlighter import JSONHighlighter
-
             highlighter = JSONHighlighter()
             highlighted_resp = highlighter(json.dumps(record, indent=2))
             rprint(Panel(highlighted_resp))
