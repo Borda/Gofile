@@ -21,15 +21,15 @@ from rich.panel import Panel
 from rich.progress import track
 
 
-def upload(file: str, best_server: str, folder_id: Optional[str] = None):
+def upload(file: str, best_server: str, folder_id: Optional[str] = None, nb_retries: int = 10):
     f_obj = Path(file)
     content_type = mimetypes.guess_type(f_obj)[0]
     upload_url = f'https://{best_server}.gofile.io/uploadFile'
     with open(f_obj, 'rb') as f:
         f_data = f.read()
 
-    attempt, resp = 0, None
-    while True:
+    resp = None
+    for attempt in range(1 + nb_retries):
         try:
             resp = requests.post(
                 upload_url,
@@ -43,10 +43,8 @@ def upload(file: str, best_server: str, folder_id: Optional[str] = None):
             rprint(
                 'The connection was refused from the API side! '
                 f'Trying again... ([cyan]{attempt}[/cyan]/10)')
-            attempt += 1
-            if attempt > 10:
-                break
-            time.sleep(2)
+            if attempt < nb_retries:  # no need for sleep if it is the last iteration
+                time.sleep(2)
     return resp
 
 
@@ -145,31 +143,22 @@ def gofile_upload(path: list,
 def opts():
     parser = argparse.ArgumentParser(
         description='Example: gofile <file/folder_path>')
-    parser.add_argument(
-        '-s',
-        '--to-single-folder',
-        help=
-        'Upload multiple files to the same folder. All files will share the '
-        'same URL. This option requires a valid token exported as: '
-        '`GOFILE_TOKEN`',
+    parser.add_argument('-s', '--to-single-folder',
+        help='Upload multiple files to the same folder. All files will share the '
+            'same URL. This option requires a valid token exported as: `GOFILE_TOKEN`',
         action='store_true')
-    parser.add_argument(
-        '-o',
-        '--open-urls',
-        help='Open the URL(s) in the browser when the upload is complete '
-        '(macOS-only)',
+    parser.add_argument('-o', '--open-urls',
+        help='Open the URL(s) in the browser when the upload is complete (macOS-only)',
         action='store_true')
-    parser.add_argument('-e',
-                        '--export',
-                        help='Export upload response(s) to a JSON file',
-                        action='store_true')
-    parser.add_argument('-vv',
-                        '--verbose',
-                        help='Show more information',
-                        action='store_true')
+    parser.add_argument('-e', '--export',
+        help='Export upload response(s) to a JSON file',
+        action='store_true')
+    parser.add_argument('-vv', '--verbose',
+        help='Show more information',
+        action='store_true')
     parser.add_argument('path',
-                        nargs='+',
-                        help='Path to the file(s) and/or folder(s)')
+        nargs='+',
+        help='Path to the file(s) and/or folder(s)')
     return parser.parse_args()
 
 
