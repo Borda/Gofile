@@ -21,7 +21,7 @@ from rich.panel import Panel
 from rich.progress import track
 
 
-def upload(file: str, best_server: str, folder_id: Optional[str] = None):
+def upload(file: str, best_server: str, folder_id: Optional[str] = None, nb_):
     f_obj = Path(file)
     content_type = mimetypes.guess_type(f_obj)[0]
     upload_url = f'https://{best_server}.gofile.io/uploadFile'
